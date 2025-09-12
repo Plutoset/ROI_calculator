@@ -1,7 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-
+import warnings
+import numpy as np
+from scipy.optimize import curve_fit
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+warnings.filterwarnings("ignore")
 
 df_input = pd.DataFrame({'ARPU': {1: 0.57,
   2: 0.73,
@@ -108,7 +113,8 @@ with col2:
         submitted = st.form_submit_button("提交")
         st.markdown("左侧表格可直接在单元格输入或粘贴，支持Excel复制粘贴。")
 if submitted:
-    dates = range(1, len(edited_df) + 1)
+    df_input['留存'] = df_input['留存']/100
+    dates = df_input.index
     # 数据类型转换与处理
     counter = float(counter.replace(",", ""))
     cpi_now = float(cpi_now)
@@ -120,29 +126,54 @@ if submitted:
     cpi_guess = float(cpi_guess)
     roi_guess = float(roi_guess.replace("%", ""))/100
     ret30_boost = float(ret30_boost)
-    df_arpu = pd.DataFrame(index=dates, columns=dates)
-    df_ret = pd.DataFrame(index=dates, columns=dates)
-    df_ltv = pd.DataFrame(index=dates, columns=dates)
-    df_ret_guess = pd.DataFrame(index=dates, columns=dates)
+    df_arpu = pd.DataFrame(index=dates, columns=dates.values)
+    df_ret = pd.DataFrame(index=dates, columns=dates.values)
+    df_ltv = pd.DataFrame(index=dates, columns=dates.values)
+    df_ret_guess = pd.DataFrame(index=dates, columns=dates.values)
+    df_ltv_guess = pd.DataFrame(index=dates, columns=dates.values)
+    # 已知点
+    x1,x2=2,15
+    y1=df_input.loc[2,'留存']
+    y2=df_input.loc[15,'留存']*ret30_boost
+
+    # 定义幂函数
+    def power_law(x, a, b):
+        return a * (x ** (-b))
+
+    # 拟合
+    popt, pcov = curve_fit(power_law, [x1, x2], [y1, y2], p0=[1, 1])
+    a, b = popt
+
+    # 检查性质
+    x_range = np.linspace(2, 15, 14)
+    y_range = power_law(x_range, a, b)
+
+    ret_new = df_input['留存']*ret30_boost
+    ret_new.loc[1:2]=df_input.loc[1:2,'留存']
+    ret_new.loc[2:15]=y_range
 
     for i, row_date in enumerate(dates):
         for j, col_date in enumerate(dates):
             if j <= i:
                 df_arpu.iloc[i,j] = df_input.loc[col_date, 'ARPU']
-                df_ret.iloc[i,j] = df_input.loc[col_date, '留存']/100
-                df_ret_guess.iloc[i,j] = df_input.loc[col_date, '留存']/100*ret30_boost
-                df_ltv.iloc[i,j] = df_input.loc[col_date, 'ARPU'] * df_input.loc[col_date, '留存']/100 * counter
+                df_ret.iloc[i,j] = df_input.loc[col_date, '留存']
+                df_ret_guess.iloc[i,j] = ret_new[col_date]
+                df_ltv.iloc[i,j] = df_input.loc[col_date, 'ARPU'] * df_input.loc[col_date, '留存'] * counter
+                df_ltv_guess.iloc[i,j] = df_input.loc[col_date, 'ARPU'] * ret_new[col_date] * counter
             else:
                 df_arpu.iloc[i,j] = np.nan
                 df_ret.iloc[i,j] = np.nan
                 df_ret_guess.iloc[i,j] = np.nan
                 df_ltv.iloc[i,j] = np.nan
+                df_ltv_guess.iloc[i,j] = np.nan
     df_cost = pd.DataFrame(index=df_input.index)
     df_cost['创号数'] = counter
     df_cost['COST']=cpi_now*counter
     df_cost['目标COST']=cpi_guess*counter
     df_cost['当前LTV'] = df_ltv.sum(axis=1)
-
+    df_cost['目标LTV'] = df_ltv_guess.sum(axis=1)
+    df_cost['当前ROI'] = df_cost['当前LTV']/df_cost['COST']
+    df_cost['目标ROI'] = df_cost['目标LTV']/df_cost['目标COST']
 
     arpu_now = df_input['ARPU'].mean()
     xiaofei_now = df_cost['COST'].sum()
@@ -198,3 +229,79 @@ if submitted:
     st.markdown("### 计算结果")
     st.write("直接复制下方表格内容到Excel即可：")
     st.dataframe(df_with_index)
+    
+    # 创建图表
+    fig = make_subplots(
+        rows=1, 
+        cols=3, 
+        subplot_titles=('ROI曲线', 'LTV曲线', '留存曲线'),
+        horizontal_spacing=0.1
+    )
+    # ROI曲线
+    fig.add_trace(
+        go.Scatter(x=dates, y=df_cost['当前ROI'], mode='lines', name='目前ROI', line=dict(color='blue'),
+                hovertemplate='<b>目前ROI</b>: %{y:.2f}<extra></extra>', legendgroup='group1', showlegend=True),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=dates, y=df_cost['目标ROI'], mode='lines', name='目标ROI', line=dict(color='red'),
+                hovertemplate='<b>目标ROI</b>: %{y:.2f}<extra></extra>', legendgroup='group1', showlegend=True),
+        row=1, col=1
+    )
+
+    # LTV曲线
+    fig.add_trace(
+        go.Scatter(x=dates, y=df_cost['当前LTV']/counter, mode='lines', name='目前LTV', line=dict(color='blue'),
+                hovertemplate='<b>目前LTV</b>: %{y:.2f}<extra></extra>', legendgroup='group2', showlegend=True),
+        row=1, col=2
+    )
+    fig.add_trace(
+        go.Scatter(x=dates, y=df_cost['目标LTV']/counter, mode='lines', name='目标LTV', line=dict(color='red'),
+                hovertemplate='<b>目标LTV</b>: %{y:.2f}<extra></extra>', legendgroup='group2', showlegend=True),
+        row=1, col=2
+    )
+
+    # 留存曲线
+    fig.add_trace(
+        go.Scatter(x=dates, y=df_input['留存'], mode='lines', name='目前留存', line=dict(color='blue'),
+                hovertemplate='<b>目前留存</b>: %{y:.2%}<extra></extra>', legendgroup='group3', showlegend=True),
+        row=1, col=3
+    )
+    fig.add_trace(
+        go.Scatter(x=dates, y=ret_new, mode='lines', name='目标留存', line=dict(color='red'),
+                hovertemplate='<b>目标留存</b>: %{y:.2%}<extra></extra>', legendgroup='group3', showlegend=True),
+        row=1, col=3
+    )
+    
+    fig.update_layout(
+        height=500,
+        hovermode='x unified',
+        showlegend=True,
+        legend=dict(
+            orientation="h",  # 水平排列
+            yanchor="bottom",
+            y=-0.3,  # 调整legend位置
+            xanchor="center",
+            x=0.5
+        ),
+        margin=dict(l=50, r=50, t=80, b=150)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    # 数据下载按钮
+    csv = pd.DataFrame({
+        '日期': dates,
+        '当前ROI': df_cost['当前ROI'],
+        '目标ROI': df_cost['目标ROI'],
+        '当前LTV': df_cost['当前LTV']/counter,
+        '目标LTV': df_cost['目标LTV']/counter,
+        '目前留存': df_input['留存'],
+        '目标留存': ret_new
+    })
+
+    st.download_button(
+        label="📥 下载数据为CSV",
+        data=csv.to_csv(index=False).encode('utf-8-sig'),
+        file_name='ROI计算结果.csv',
+        mime='text/csv'
+    )
