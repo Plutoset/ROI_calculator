@@ -99,16 +99,20 @@ with col2:
         col1, col2, col3 = st.columns(3)
         with col1:
             counter = st.text_input("创号数", value="15000")
-            cpi_now = st.text_input("现状CPI", value="10.56")
-            rate_now = st.text_input("实收比例", value="0.67")
-        with col2:
-            rate_guess = st.text_input("预估实收比例", value="0.67")
-            arpu_k = st.text_input("ARPU提升量", value="1.4")
-            ret30_plus = st.text_input("30留存比上调", value="1.34%")
-        with col3:
-            cpi_guess = st.text_input("预估CPI", value="11")
             roi_guess = st.text_input("预估首月ROI", value="35.00%")
+            arpu_k = st.text_input("ARPU提升率", value="1.4")
+        with col2:
+            cpi_now = st.text_input("现状CPI", value="10.56")
+            cpi_guess = st.text_input("预估CPI", value="11")
+            
+            
             ret30_boost = st.text_input("30留上调", value="1.8")
+            # ret30_plus = st.text_input("30留存比上调", value="1.34%")
+        with col3:
+            rate_now = st.text_input("实收比例", value="0.67")
+            rate_guess = st.text_input("预估实收比例", value="0.67")
+            
+            
         
         submitted = st.form_submit_button("提交")
         st.markdown("左侧表格可直接在单元格输入或粘贴，支持Excel复制粘贴。")
@@ -122,7 +126,7 @@ if submitted:
     rate_guess = float(rate_guess)
     arpu_k = float(arpu_k)
     # ret30_plus 可能带%，去掉
-    ret30_plus = float(ret30_plus.replace("%", ""))/100
+    # ret30_plus = float(ret30_plus.replace("%", ""))/100
     cpi_guess = float(cpi_guess)
     roi_guess = float(roi_guess.replace("%", ""))/100
     ret30_boost = float(ret30_boost)
