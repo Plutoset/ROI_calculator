@@ -73,7 +73,24 @@ default_rows = 30
 
 
 st.title("ROI计算器")
-
+with st.expander("📖 点击查看使用说明", expanded=False):
+    st.markdown("""
+    ## ROI计算器功能说明
+    
+    ### 使用方式
+    1. 请在左侧表格中输入或者黏贴30天ARPU和留存数据
+    2. 请在右侧表单中输入参数，（注：预估首月ROI为百分数值，如35%则输入35%
+    3. 点击提交按钮，查看计算结果和图表
+    
+    #### ROI计算公式""", unsafe_allow_html=True)
+    st.latex(r"""
+    \text{首月ROI} = \frac{\text{LTV}}{\text{COST}} = \frac{\sum (\text{创号数} \times \text{ARPU}_t \times \text{留存率}_t) \times \text{实收比例}}{\text{创号数} \times \text{CPI}}
+    """)
+    st.markdown("""
+    ##### 拟合方式
+    1. ARPU数据根据提升率进行等比例提升；
+    2. 留存数据基于30留提升，15-30留存衰减速率符合当前数据规律，2留保留不变，3-14留使用幂函数进行拟合，公式如下：""", unsafe_allow_html=True)
+    st.latex(r"Ret_{n} =  a \times t^{-b}")
 col1,col2=st.columns(2)
 with col1:
     # 显示可编辑表格，带行号
@@ -106,7 +123,7 @@ with col2:
             cpi_guess = st.text_input("预估CPI", value="11")
             
             
-            ret30_boost = st.text_input("30留上调", value="1.8")
+            ret30_boost = st.text_input("30留提升率", value="1.8")
             # ret30_plus = st.text_input("30留存比上调", value="1.34%")
         with col3:
             rate_now = st.text_input("实收比例", value="0.67")
@@ -115,7 +132,7 @@ with col2:
             
         
         submitted = st.form_submit_button("提交")
-        st.markdown("左侧表格可直接在单元格输入或粘贴，支持Excel复制粘贴。")
+        st.caption("左侧表格可直接在单元格输入或粘贴，支持Excel复制粘贴。")
 if submitted:
     df_input['留存'] = df_input['留存']/100
     dates = df_input.index
@@ -302,9 +319,9 @@ if submitted:
         '目前留存': df_input['留存'],
         '目标留存': ret_new
     })
-
+    st.caption("留存数据进行拟合，图表中计算的累积LTV与表格中略有差异，请以表格数据为准。")
     st.download_button(
-        label="📥 下载数据为CSV",
+        label="📥 下载绘图数据为CSV",
         data=csv.to_csv(index=False).encode('utf-8-sig'),
         file_name='ROI计算结果.csv',
         mime='text/csv'
